@@ -1,79 +1,77 @@
 """
 01_merge_data.py
 ----------------
-Merges the Yelp business and review CSVs, then filters for
-Arizona businesses only. Output: az_reviews.csv
+Filters the Yelp Open Dataset to Arizona and joins each review to its business.
+
+The review file is read in chunks, so the full multi-GB file never has to fit
+in memory. Before filtering, it also counts how many locations share each
+business name across the whole dataset; step 06 uses that to separate chains
+from independents.
 
 Usage:
     python src/01_merge_data.py
 
-Inputs  (place in /data):
-    yelp_academic_dataset_business.csv
-    yelp_academic_dataset_review.csv
-
-Output:
-    data/az_reviews.csv
+Input:  data/yelp_academic_dataset_business.csv
+        data/yelp_academic_dataset_review.csv
+Output: data/az_reviews.csv
 """
 
 import pandas as pd
 
+from common import BUSINESS_CSV, MERGED_CSV, REVIEW_CSV, STATE, normalize_name
 
-def load_and_merge(business_path: str, review_path: str) -> pd.DataFrame:
-    """
-    Inner-join the business and review datasets on business_id.
-
-    Args:
-        business_path: Path to the business CSV file.
-        review_path:   Path to the review CSV file.
-
-    Returns:
-        A merged DataFrame containing both business metadata and review text.
-    """
-    print("Loading business data...")
-    businesses = pd.read_csv(business_path)
-
-    print("Loading review data (this may take a moment — 4+ GB file)...")
-    reviews = pd.read_csv(review_path)
-
-    print("Merging on business_id...")
-    merged = pd.merge(businesses, reviews, on="business_id", how="inner")
-
-    print(f"Merged dataset: {len(merged):,} rows, {merged.shape[1]} columns")
-    return merged
+REQUIRED_BUSINESS_COLS = ["business_id", "name", "state", "categories"]
+OPTIONAL_BUSINESS_COLS = ["city", "stars", "review_count", "is_open"]
+REVIEW_COLS = ["review_id", "business_id", "stars", "text", "date"]
 
 
-def filter_arizona(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Filter the merged DataFrame to Arizona businesses only.
+def check_columns(path, required):
+    header = pd.read_csv(path, nrows=0).columns
+    missing = [c for c in required if c not in header]
+    if missing:
+        raise SystemExit(f"{path} is missing columns: {missing}")
+    return header
 
-    Args:
-        df: The full merged DataFrame.
 
-    Returns:
-        A DataFrame containing only rows where state == 'AZ'.
-    """
-    az = df[df["state"] == "AZ"].copy()
-    print(f"Arizona subset: {len(az):,} reviews across {az['business_id'].nunique():,} businesses")
-    return az
+def load_businesses():
+    header = check_columns(BUSINESS_CSV, REQUIRED_BUSINESS_COLS)
+    cols = REQUIRED_BUSINESS_COLS + [c for c in OPTIONAL_BUSINESS_COLS if c in header]
+    if "is_open" not in cols:
+        print("WARNING: no is_open column, so step 06 will skip the closure backtest.")
+
+    biz = pd.read_csv(BUSINESS_CSV, usecols=cols)
+    # Chain proxy: number of businesses in the full dataset with the same name.
+    name_key = biz["name"].map(normalize_name)
+    biz["name_locations"] = name_key.map(name_key.value_counts())
+    biz = biz.rename(columns={"stars": "business_stars", "review_count": "business_review_count"})
+
+    local = biz[biz["state"] == STATE].copy()
+    print(f"Businesses: {len(biz):,} in the dataset, {len(local):,} in {STATE}")
+    return local
+
+
+def load_reviews(business_ids):
+    check_columns(REVIEW_CSV, REVIEW_COLS)
+    keep, scanned = [], 0
+    for i, chunk in enumerate(pd.read_csv(REVIEW_CSV, usecols=REVIEW_COLS, chunksize=250_000)):
+        scanned += len(chunk)
+        keep.append(chunk[chunk["business_id"].isin(business_ids)])
+        if i % 4 == 3:
+            print(f"  scanned {scanned:,} reviews")
+    reviews = pd.concat(keep, ignore_index=True).rename(columns={"stars": "review_stars"})
+    print(f"Reviews: {scanned:,} scanned, {len(reviews):,} for {STATE} businesses")
+    return reviews
 
 
 def main():
-    business_path = "data/yelp_academic_dataset_business.csv"
-    review_path   = "data/yelp_academic_dataset_review.csv"
-    output_path   = "data/az_reviews.csv"
-
-    merged = load_and_merge(business_path, review_path)
-    az     = filter_arizona(merged)
-
-    print(f"Saving to {output_path}...")
-    az.to_csv(output_path, index=False)
-    print("Done.")
-
-    # Quick sanity check
-    print("\nColumn overview:")
-    print(az.dtypes.to_string())
-    print("\nFirst row preview:")
-    print(az.head(1).T.to_string())
+    businesses = load_businesses()
+    reviews = load_reviews(set(businesses["business_id"]))
+    merged = reviews.merge(businesses, on="business_id", how="inner")
+    merged.to_csv(MERGED_CSV, index=False)
+    print(
+        f"Saved {len(merged):,} reviews across {merged['business_id'].nunique():,} "
+        f"businesses to {MERGED_CSV}"
+    )
 
 
 if __name__ == "__main__":

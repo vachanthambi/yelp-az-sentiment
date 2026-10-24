@@ -1,0 +1,32 @@
+{
+  "n_reviews": 431708,
+  "n_businesses": 9912,
+  "star_share": {
+    "1": 0.17422424416503748,
+    "2": 0.08077913775051655,
+    "3": 0.08993810631260019,
+    "4": 0.18650106090227653,
+    "5": 0.46855745086956924
+  },
+  "old_labels_source": "first run's saved labels",
+  "vader_fixed": {
+    "label_share": {
+      "Negative": 0.16073364403717327,
+      "Neutral": 0.013025007644055705,
+      "Positive": 0.826241348318771
+    },
+    "complaints_labelled_negative": 0.5308619546358789,
+    "complaints_labelled_positive": 0.4390345817398966,
+    "agreement_with_stars": 0.7754060615045355
+  },
+  "vader_old": {
+    "label_share": {
+      "Negative": 0.1193630880131941,
+      "Neutral": 0.014535287740787755,
+      "Positive": 0.8661016242460181
+    },
+    "complaints_labelled_negative": 0.40041058435600935,
+    "complaints_labelled_positive": 0.5633726053030784,
+    "agreement_with_stars": 0.7444036246722322
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "n_complaints": 110081,
+  "vocabulary_size": 10000,
+  "coherence_by_k": {
+    "4": 0.14051542509212178,
+    "5": 0.1798950731213484,
+    "6": 0.15636291784364803,
+    "7": 0.10509396395850944,
+    "8": 0.10655148899309691,
+    "9": 0.12096414460684035,
+    "10": 0.14272187364171607,
+    "11": 0.07328357111556355,
+    "12": 0.12689831905005014
+  },
+  "best_k": 5,
+  "topics": [
+    {
+      "topic": 1,
+      "label": "T1: food, order, good",
+      "top_words": [
+        "food",
+        "order",
+        "good",
+        "eat",
+        "restaurant",
+        "service",
+        "table",
+        "taste",
+        "chicken",
+        "bad"
+      ],
+      "share_of_complaints": 0.41660232010973736,
+      "coherence": 0.15341243167459268
+    },
+    {
+      "topic": 2,
+      "label": "T2: customer, service, wait",
+      "top_words": [
+        "customer",
+        "service",
+        "wait",
+        "store",
+        "manager",
+        "people",
+        "order",
+        "minute",
+        "employee",
+        "rude"
+      ],
+      "share_of_complaints": 0.23950545507399096,
+      "coherence": 0.1059735661771269
+    },
+    {
+      "topic": 3,
+      "label": "T3: service, car, company",
+      "top_words": [
+        "service",
+        "car",
+        "company",
+        "hour",
+        "phone",
+        "work",
+        "appointment",
+        "pay",
+        "week",
+        "charge"
+      ],
+      "share_of_complaints": 0.1964735058729481,
+      "coherence": 0.12217307445645215
+    },
+    {
+      "topic": 4,
+      "label": "T4: room, dog, clean",
+      "top_words": [
+        "room",
+        "dog",
+        "clean",
+        "stay",
+        "hotel",
+        "door",
+        "car",
+        "work",
+        "water",
+        "night"
+      ],
+      "share_of_complaints": 0.09166886201978543,
+      "coherence": 0.15022321664004185
+    },
+    {
+      "topic": 5,
+      "label": "T5: nail, hair, cut",
+      "top_words": [
+        "nail",
+        "hair",
+        "cut",
+        "apartment",
+        "bad",
+        "pay",
+        "leave",
+        "good",
+        "color",
+        "salon"
+      ],
+      "share_of_complaints": 0.05574985692353812,
+      "coherence": 0.11363167956926541
+    }
+  ],
+  "sector_complaints": {
+    "Restaurants & Food": 67129,
+    "Home Services": 8400,
+    "Automotive": 7023,
+    "Health & Medical": 6427,
+    "Shopping": 5864,
+    "Beauty & Spas": 5507,
+    "Hotels & Travel": 3540
+  },
+  "theme_share_by_sector": {
+    "Restaurants & Food": {
+      "T1: food, order, good": 0.6790358861296906,
+      "T2: customer, service, wait": 0.25540377482161214,
+      "T3: service, car, company": 0.026262867017235472,
+      "T4: room, dog, clean": 0.034158113482995425,
+      "T5: nail, hair, cut": 0.005139358548466385
+    },
+    "Home Services": {
+      "T1: food, order, good": 0.0007142857142857143,
+      "T2: customer, service, wait": 0.12071428571428572,
+      "T3: service, car, company": 0.5425,
+      "T4: room, dog, clean": 0.23511904761904762,
+      "T5: nail, hair, cut": 0.10095238095238095
+    },
+    "Automotive": {
+      "T1: food, order, good": 0.0017086715079026058,
+      "T2: customer, service, wait": 0.11633205182970241,
+      "T3: service, car, company": 0.7313114053823152,
+      "T4: room, dog, clean": 0.14096539940196498,
+      "T5: nail, hair, cut": 0.009682471878114766
+    },
+    "Health & Medical": {
+      "T1: food, order, good": 0.0037342461490586587,
+      "T2: customer, service, wait": 0.1330325190602147,
+      "T3: service, car, company": 0.7550956900575696,
+      "T4: room, dog, clean": 0.047611638400497897,
+      "T5: nail, hair, cut": 0.06052590633265909
+    },
+    "Shopping": {
+      "T1: food, order, good": 0.007673942701227831,
+      "T2: customer, service, wait": 0.6057298772169167,
+      "T3: service, car, company": 0.3257162346521146,
+      "T4: room, dog, clean": 0.03956343792633015,
+      "T5: nail, hair, cut": 0.02131650750341064
+    },
+    "Beauty & Spas": {
+      "T1: food, order, good": 0.003086980207009261,
+      "T2: customer, service, wait": 0.16215725440348647,
+      "T3: service, car, company": 0.08207735609224623,
+      "T4: room, dog, clean": 0.03431995641910296,
+      "T5: nail, hair, cut": 0.718358452878155
+    },
+    "Hotels & Travel": {
+      "T1: food, order, good": 0.024858757062146894,
+      "T2: customer, service, wait": 0.10028248587570622,
+      "T3: service, car, company": 0.19491525423728814,
+      "T4: room, dog, clean": 0.6754237288135593,
+      "T5: nail, hair, cut": 0.004519774011299435
+    }
+  }
+}

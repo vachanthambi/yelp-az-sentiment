@@ -1,0 +1,81 @@
+{
+  "negative_share_overall": 0.25500338191555405,
+  "vader_negative_share_by_star": {
+    "vader_label_old": {
+      "1": 0.48533517696173584,
+      "2": 0.21724543342987412,
+      "3": 0.07744610709042676,
+      "4": 0.0191892093300544,
+      "5": 0.014326675894799287
+    },
+    "vader_label": {
+      "1": 0.6168000638179062,
+      "2": 0.3455108536690276,
+      "3": 0.13773920210163032,
+      "4": 0.028119333283652532,
+      "5": 0.016496934941665018
+    }
+  },
+  "most_negative_categories": [
+    {
+      "category": "Television Service Providers",
+      "share_1_2_star": 0.8431372549019608,
+      "reviews": 510
+    },
+    {
+      "category": "University Housing",
+      "share_1_2_star": 0.7794392523364486,
+      "reviews": 535
+    },
+    {
+      "category": "Property Management",
+      "share_1_2_star": 0.6988716502115656,
+      "reviews": 1418
+    },
+    {
+      "category": "Internet Service Providers",
+      "share_1_2_star": 0.684652278177458,
+      "reviews": 834
+    },
+    {
+      "category": "Apartments",
+      "share_1_2_star": 0.6619621342512909,
+      "reviews": 2905
+    },
+    {
+      "category": "Banks & Credit Unions",
+      "share_1_2_star": 0.6415478615071283,
+      "reviews": 982
+    },
+    {
+      "category": "Real Estate",
+      "share_1_2_star": 0.6172714372592742,
+      "reviews": 4933
+    },
+    {
+      "category": "Hospitals",
+      "share_1_2_star": 0.6015108593012276,
+      "reviews": 1059
+    },
+    {
+      "category": "Telecommunications",
+      "share_1_2_star": 0.5962962962962963,
+      "reviews": 540
+    },
+    {
+      "category": "Car Rental",
+      "share_1_2_star": 0.5836177474402731,
+      "reviews": 1172
+    },
+    {
+      "category": "Real Estate Services",
+      "share_1_2_star": 0.545335085413929,
+      "reviews": 761
+    },
+    {
+      "category": "Obstetricians & Gynecologists",
+      "share_1_2_star": 0.5406301824212272,
+      "reviews": 603
+    }
+  ]
+}

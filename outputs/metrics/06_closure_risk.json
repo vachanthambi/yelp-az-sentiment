@@ -1,0 +1,51 @@
+{
+  "backtest": {
+    "cutoff_date": "2019-01-01",
+    "n_businesses": 3628,
+    "n_closed": 333,
+    "closure_rate": 0.09178610804851157,
+    "auc_all_signals": 0.6244104499036214,
+    "auc_ratings_only": 0.5494456520253183,
+    "tiers": {
+      "High risk": {
+        "businesses": 363,
+        "closed": 67,
+        "closure_rate": 0.18457300275482094,
+        "lift": 2.01090346544892
+      },
+      "Elevated": {
+        "businesses": 726,
+        "closed": 93,
+        "closure_rate": 0.128099173553719,
+        "lift": 1.3956270319906683
+      },
+      "Low": {
+        "businesses": 2539,
+        "closed": 173,
+        "closure_rate": 0.06813706183536826,
+        "lift": 0.7423461271432914
+      }
+    },
+    "standardised_weights": {
+      "Rating (Bayesian average)": -0.2549086515898778,
+      "Share of 1-2 star reviews, last 12 months": -0.04590363829284105,
+      "Rating trend, last 12 vs prior 12 months": 0.008594870387232084,
+      "Review volume trend, last 12 vs prior 12 months": 0.012431708493204586,
+      "Reviews in the last 12 months (log)": -0.10708784709472338,
+      "Years since first review": -0.21613408013942284,
+      "Restaurant": 0.4768798553357263,
+      "Chain": -0.17661600289659432
+    },
+    "top15_closed": 5
+  },
+  "revenue": {
+    "as_of": "2022-01-20",
+    "n_independent_restaurants": 1097,
+    "average_rating": 3.7916445455501835,
+    "n_below_average": 512,
+    "median_opportunity_usd": 12785.486992438022,
+    "uplift_per_star": 0.05,
+    "baseline_revenue_usd": 800000,
+    "chain_min_locations": 5
+  }
+}

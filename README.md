@@ -1,265 +1,244 @@
-# Yelp Arizona — Sentiment Analysis & Business Health Scoring
+# Yelp Arizona: What 431,708 Reviews Say, and What They Don't
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3%2B-orange?logo=scikit-learn&logoColor=white)
-![NLTK](https://img.shields.io/badge/NLTK-3.8%2B-green)
-![spaCy](https://img.shields.io/badge/spaCy-3.6%2B-09A3D5?logo=spacy&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-lightgrey)
+Text mining and machine learning on the Arizona businesses in the
+[Yelp Open Dataset](https://www.yelp.com/dataset): 431,708 reviews of 9,912
+businesses in the Tucson area. Three questions:
 
-> A text mining and machine learning pipeline that transforms 430,000+ Yelp reviews
-> into actionable business intelligence — including complaint theme discovery,
-> star rating prediction, and a financial health score for every business in Arizona.
+1. How well does review text predict the star rating?
+2. What do 1-2 star reviews complain about, and does it differ by industry?
+3. Do review signals warn that a business is about to close?
 
----
+Built for BANA 572 (Machine Learning & Text Mining) at Oregon State University,
+then revised in October 2026 (see [What changed](#what-changed-from-the-first-version)).
 
-## Overview
+## Key findings
 
-This project was built as part of **BANA 572 — Machine Learning & Text Mining** at
-Oregon State University. The goal is to demonstrate how unstructured customer feedback
-can be converted into structured, decision-ready insights using NLP and ML techniques.
+- **Text predicts ratings well.** TF-IDF logistic regression gets 72.2% of 1-5 star
+  ratings exactly right, against 46.9% for always guessing 5 stars, and lands within
+  one star 95.8% of the time. It flags 1-2 star reviews with 88% recall and 88% precision.
+- **Lexicon sentiment misses nearly half the complaints.** Even after fixing its
+  preprocessing, VADER labels 44% of 1-2 star reviews as positive. The supervised
+  model catches 88% of them.
+- **Ratings barely predict closures.** Backtested against 333 real closures, ratings
+  alone scored an AUC of 0.55, where 0.5 is chance. Adding business type, age and activity
+  raised it to 0.62, and the riskiest 10% of businesses closed at twice the average
+  rate. Being a restaurant was the strongest signal.
+- **Complaints mostly follow the industry.** Food drives restaurant complaints;
+  appointments, billing and repairs drive medical, auto and home-service complaints.
+  Rude or slow staff is the one theme that cuts across sectors (24% of complaints).
 
-**Dataset:** [Yelp Open Dataset](https://www.yelp.com/dataset) — 431,709 reviews
-from 150,000+ businesses, filtered to Arizona.
+## Data
 
-### Key Questions Answered
+The 431,708 Arizona reviews in the Yelp Open Dataset, joined to their businesses.
+Ratings skew high: 46.9% of reviews give 5 stars, and 25.5% give 1 or 2.
 
-| Question | Technique |
-|----------|-----------|
-| What is the overall sentiment of Arizona Yelp reviews? | VADER Sentiment Analysis |
-| What themes appear in negative reviews? | LDA Topic Modeling |
-| Which complaint patterns group similar reviews? | K-Means Clustering (elbow-optimised) |
-| Can we predict a review's star rating from text alone? | Logistic Regression + Random Forest |
-| Which businesses are financially at-risk based on sentiment? | Business Health Scoring |
-
----
-
-## Results Snapshot
-
-| Metric | Value |
-|--------|-------|
-| Reviews analysed | 431,709 |
-| Sentiment — Positive | 84.1% |
-| Sentiment — Negative | 12.7% |
-| Star Predictor Accuracy (LR) | 94% |
-| LDA Topics Discovered | 5 |
-| At-Risk Businesses Flagged | ~16% of dataset |
+![Distribution of star ratings](assets/star_rating_distribution.png)
 
 ---
 
-## Project Structure
+## 1. Predicting the star rating from text
 
-```
-yelp-az-sentiment/
-├── src/
-│   ├── 01_merge_data.py          # Merge business + review CSVs, filter AZ
-│   ├── 02_preprocess.py          # Clean text, lemmatise, VADER sentiment
-│   ├── 03_sentiment_eda.py       # EDA charts and sentiment visualisations
-│   ├── 04_topic_cluster.py       # LDA topics + K-Means clustering (elbow method)
-│   ├── 05_star_predictor.py      # Predict star rating (1–5) from review text
-│   └── 06_financial_health.py    # Business Health Score + revenue impact
-├── data/
-│   └── README.md                 # Download instructions for raw dataset
-├── outputs/                      # All charts and reports (auto-generated)
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
+80/20 stratified split (345,366 training and 86,342 test reviews). The TF-IDF vocabulary
+is learned from training reviews only, and the regularisation strength (C = 2) was
+picked on a validation slice of the training data.
+
+| Model (test set) | Accuracy | Within 1 star | Mean error | Flags 1-2 star reviews: recall | Precision |
+|---|---|---|---|---|---|
+| Always guess 5 stars | 46.9% | 65.5% | 1.31 stars | - | - |
+| First version: cleaned text, top 3,000 words | 69.2% | 93.0% | 0.42 stars | 84.3% | 84.9% |
+| **Original text, words + 2-word phrases** | **72.2%** | **95.8%** | **0.34 stars** | **87.9%** | **88.2%** |
+
+- **The extremes are easy and the middle is hard.** The model gets 87% of 1-star and
+  89% of 5-star reviews right, but only 35-46% of 2, 3 and 4-star reviews, which it
+  mostly confuses with their neighbours.
+- **Negations carry signal.** "not", "will never" and "very disappointed" are among the
+  strongest 1-star signals. The first version's cleaning deleted "not", "will" and
+  "very" before modelling. "not only" is a 5-star signal.
+- **Many of its worst misses are label noise.** The model's most confident mistakes
+  are largely reviews whose stars contradict their own text, such as 5 stars on a
+  review that opens "worst place ever".
+
+![Confusion matrices, first version vs current](assets/star_predictor_confusion_matrix.png)
+
+![Strongest 1-star and 5-star phrases](assets/star_predictor_top_phrases.png)
+
+## 2. How reliable is lexicon sentiment (VADER)?
+
+VADER is a rule-based sentiment scorer built for raw, informal text: it reads
+negations ("not good"), contrast ("but"), intensifiers ("very"), capitals and "!".
+The first version ran it on text that had already been stripped of stopwords, and
+NLTK's stopword list includes "not", "no", "nor", "but" and "very". "The food was
+not good and the service was not friendly" became "food good service friendly", which
+scores as positive.
+
+Checked against what customers actually rated:
+
+| | Before: VADER on cleaned text | After: VADER on original text |
+|---|---|---|
+| 1-2 star reviews labelled negative | 40.0% | 53.1% |
+| 1-2 star reviews labelled positive | 56.3% | 43.9% |
+| Agreement with the star rating (negative / neutral / positive) | 74.4% | 77.5% |
+
+The fix helps, but VADER still calls 44% of complaints positive. Long complaints
+often contain positive words ("I wanted to love this place..."), and a word-level
+lexicon adds them up. The supervised model in section 1 catches 88% of complaints.
+
+![VADER labels vs customer star ratings, before and after the fix](assets/vader_vs_stars.png)
+
+## 3. What do 1-2 star reviews complain about?
+
+LDA topic model on the 110,081 reviews rated 1-2 stars. The number of topics was chosen
+by NPMI coherence, which measures whether a topic's top words actually appear together
+in reviews: 5 topics scored highest (0.180) of the 4-12 tried; the next best was 6 (0.156).
+
+| Theme | Share of complaints | Typical words | Where it dominates |
+|---|---|---|---|
+| Food and the meal | 41.7% | food, order, taste, chicken, table | Restaurants (68% of their complaints) |
+| Rude or slow staff | 24.0% | customer, service, wait, manager, rude, minute | Shopping (61%); also 26% of restaurant complaints |
+| Appointments, billing and repairs | 19.6% | car, company, phone, appointment, pay, charge | Health & Medical (76%), Automotive (73%), Home Services (54%) |
+| Rooms and property condition | 9.2% | room, clean, stay, hotel, door, water | Hotels & Travel (68%) |
+| Hair and nail results | 5.6% | nail, hair, cut, color, salon | Beauty & Spas (72%) |
+
+Across all businesses, the topics mostly separate industries. The exception is staff
+behaviour, which shows up everywhere. Modelling one sector at a time would likely surface
+sharper themes within it (for restaurants: wait times, wrong orders, food quality).
+
+![Main complaint theme by sector](assets/complaint_themes_by_sector.png)
+
+The categories with the highest share of 1-2 star reviews are mostly services that
+customers can't easily switch away from (all reviews: 25.5%):
+
+![Categories with the highest share of 1-2 star reviews](assets/negative_share_by_category.png)
+
+## 4. Do reviews warn that a business will close?
+
+A backtest against real outcomes:
+
+1. Cutoff date: 1 January 2019. Every signal uses only reviews written before it.
+2. Signals per business: rating (Bayesian average, so a handful of reviews can't swing
+   it), share of 1-2 star reviews in the last 12 months, rating trend, review-volume
+   trend, recent activity, years on Yelp, restaurant and chain flags.
+3. Businesses clearly open at the cutoff: 5+ reviews and at least one in the last 90
+   days, which gives 3,628 businesses.
+4. Outcome: Yelp's open/closed flag at the dataset snapshot (January 2022). 333 had
+   closed (9.2%). The window includes the pandemic.
+5. Logistic regression, scored with 5-fold cross-validated AUC.
+
+| Model | AUC |
+|---|---|
+| Ratings only (rating, recent 1-2 star share, rating trend) | 0.549 |
+| All signals | 0.624 |
+
+| Risk tier (out-of-fold predictions) | Businesses | Closed | Closure rate | vs average |
+|---|---|---|---|---|
+| High risk (top 10%) | 363 | 67 | 18.5% | 2.0x |
+| Elevated (next 20%) | 726 | 93 | 12.8% | 1.4x |
+| Low | 2,539 | 173 | 6.8% | 0.7x |
+
+Ratings on their own barely beat chance. The model's strongest signal is being a
+restaurant; higher-rated, older and chain businesses were less likely to close.
+Of the 15 businesses flagged as highest risk, 5 closed, against an expected 1.4 at
+the average rate. That makes review signals a weak early-warning tool on their own.
+
+![Closure rate by risk tier](assets/closure_rate_by_tier.png)
+
+![What moves closure risk](assets/closure_risk_drivers.png)
+
+![The 15 highest-risk businesses at the cutoff](assets/closure_backtest_top15.png)
+
+## 5. Revenue illustration: independent restaurants
+
+Luca (Harvard Business School) estimated that one extra Yelp star lifts an
+independent restaurant's revenue 5-9%, and found no effect for chains. Applying the
+low end to the 1,097 open independent restaurants with 5+ reviews (a name at fewer
+than 5 locations across the Yelp dataset counts as independent): 512 rate below the
+average of 3.79 stars, and reaching the average would be worth a median $12,785 a year
+each, assuming $800,000 in annual revenue. Revenue is assumed, not observed, so treat
+this as illustrative.
+
+![Illustrative revenue upside for independent restaurants](assets/revenue_opportunity_independents.png)
 
 ---
 
-## Pipeline
+## What changed from the first version
 
-Run each script in order. Each script reads from `data/` and writes to `outputs/`.
+- **Star prediction:** the first README reported 94% accuracy; the pipeline's actual
+  star-prediction accuracy was 69.2%. Results are now reported against a baseline, the
+  TF-IDF vocabulary is learned from training data only (it was fitted before the
+  train/test split), and the model reads the original text. Random Forest was dropped:
+  it scored 56.8% and almost never predicted 2-4 stars.
+- **Sentiment:** VADER now scores the original text instead of stopword-stripped text.
+- **Complaint themes:** complaints are defined by the customer's own 1-2 star rating
+  instead of VADER labels, and the number of topics is chosen by coherence instead of
+  fixed. K-Means was dropped: it found 8 groups against LDA's 5, with no way to
+  reconcile them.
+- **Business health:** the first version's weighted score (sentiment, stars and review
+  count with fixed 50/70 cut-offs) flagged half of all businesses and was never tested.
+  It is replaced by the closure backtest in section 4.
+- **Revenue:** the 5% per star estimate is now applied only to independent restaurants,
+  the businesses Luca's study covers, instead of every business.
 
-```
-01_merge_data.py
-      │
-      ▼
-02_preprocess.py  ──────────────────────────────────────────────────────────────┐
-      │                                                                          │
-      ▼                                                                          │
-03_sentiment_eda.py                                                              │
-      │                                                                          │
-      ├──▶  04_topic_cluster.py   (LDA + K-Means with elbow)                    │
-      │                                                                          │
-      ├──▶  05_star_predictor.py  (LR + Random Forest on stars_y)  ◀────────────┘
-      │
-      └──▶  06_financial_health.py  (Health Score + Revenue Opportunity)
-```
+## Limitations
 
----
+- One metro area on one platform; reviewers are a self-selected slice of customers.
+- The open/closed flag is a single snapshot, the closure window includes the pandemic,
+  and some closures may never have been recorded on Yelp.
+- Star ratings are noisy labels: some reviewers pick stars that contradict their own text.
+- Topics are mostly industry-level. Within-sector models would be more actionable.
+- The revenue figures rest on an assumed revenue level and an effect estimated for
+  Seattle restaurants.
 
-## Setup
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/your-username/yelp-az-sentiment.git
-cd yelp-az-sentiment
-```
-
-### 2. Create a virtual environment and install dependencies
+## Running it
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+.venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
-### 3. Add the dataset
-
-Download the Yelp CSVs and place them in `data/` — see [`data/README.md`](data/README.md).
-
-### 4. Run the pipeline
+Put the Yelp business and review CSVs in `data/` (see [data/README.md](data/README.md)),
+then run everything from the repo root:
 
 ```bash
-python src/01_merge_data.py
-python src/02_preprocess.py
-python src/03_sentiment_eda.py
-python src/04_topic_cluster.py
-python src/05_star_predictor.py
-python src/06_financial_health.py
+python run_all.py        # runs every step that isn't already up to date
+python run_all.py 04     # reruns step 04 onwards
 ```
 
-All outputs (charts, CSVs, reports) are saved to `outputs/`.
+A full run took about 25 minutes on a laptop, reusing the first version's cleaned text
+(lemmatising with spaCy adds more). Everything printed is also saved to
+`outputs/run_log.txt`, and `outputs/RESULTS.md` collects all the numbers.
 
----
+| Step | What it does |
+|---|---|
+| `00_check_env.py` | Checks every package loads before the long steps start |
+| `01_merge_data.py` | Filters the dataset to Arizona and joins reviews to businesses (reads the review file in chunks) |
+| `02_preprocess.py` | VADER on the original text; cleaned, lemmatised text for topic modelling |
+| `03_sentiment_eda.py` | Rating distribution, VADER vs stars, most complaint-heavy categories |
+| `04_topics.py` | LDA on 1-2 star reviews, topic count chosen by NPMI coherence |
+| `05_star_predictor.py` | Star prediction vs baseline and the first version's setup |
+| `06_closure_risk.py` | Closure backtest and the independent-restaurant revenue illustration |
+| `07_summary.py` | Writes `outputs/RESULTS.md` |
 
-## Methods
+Step 02 uses spaCy for lemmatisation. If the first version's output
+(`data/vader_preprocessed_output.csv`) is present, step 02 reuses its cleaned text,
+which uses identical cleaning, and skips spaCy.
 
-### Text Preprocessing (`02_preprocess.py`)
+## Project structure
 
-Raw review text is cleaned through a five-step pipeline:
-
-1. **Lowercase + noise removal** — strips URLs, numbers, and punctuation.
-2. **Tokenisation** — splits text into individual tokens (NLTK `word_tokenize`).
-3. **Stopword removal** — removes high-frequency, low-information words.
-4. **Lemmatisation** — reduces each token to its dictionary form using spaCy.
-   *(Note: only lemmatisation is applied. Stemming and lemmatisation both normalise
-   tokens to a base form but through different mechanisms — applying both would
-   produce conflicting, degraded tokens.)*
-5. **TF-IDF vectorisation** — top 3,000 terms weighted by importance across the corpus.
-
-### Sentiment Analysis — VADER (`02_preprocess.py`)
-
-[VADER](https://github.com/cjhutto/vaderSentiment) is a rule-based sentiment tool
-calibrated for informal, short-form text. Each review receives a compound score:
-
-| Score | Label |
-|-------|-------|
-| ≥ 0.05 | Positive |
-| ≤ −0.05 | Negative |
-| between | Neutral |
-
-### Complaint Theme Discovery (`04_topic_cluster.py`)
-
-Two complementary techniques are used to understand negative reviews:
-
-- **LDA Topic Modelling** — discovers themes as probability distributions over words.
-  Answers: *"What are the underlying complaint themes in the corpus?"*
-- **K-Means Clustering** — groups reviews geometrically in TF-IDF space.
-  Answers: *"Which reviews share the same complaint pattern?"*
-
-The optimal number of clusters K is selected via the **elbow method** (plotting
-inertia vs. k=2..10 and identifying the point of maximum curvature), rather than
-using an arbitrary fixed value.
-
-### Star Rating Prediction (`05_star_predictor.py`)
-
-Predicts the actual customer star rating (1–5) from cleaned review text using
-TF-IDF features. This is distinct from sentiment classification:
-
-- The *target* (`stars_y`) is independent ground truth — not derived from VADER.
-- Enables downstream tasks like early-warning flagging of likely 1-2 star reviews.
-- Helps identify reviews where tone and star rating disagree (fake review detection).
-
-### Business Health Scoring (`06_financial_health.py`)
-
-A composite score (0–100) per business, weighted across three signals:
-
-| Signal | Weight | Description |
-|--------|--------|-------------|
-| Positive sentiment ratio | 40% | Proportion of VADER-Positive reviews |
-| Average star rating | 40% | Mean `stars_y`, normalised to [0, 1] |
-| Review volume | 20% | Log-normalised review count |
-
-**Revenue opportunity** is estimated using a 5% revenue uplift per star improvement
-(per Harvard Business School, Luca 2016) applied to the gap between a business's
-average rating and the market average, using a conservative $800K annual revenue baseline.
-
----
-
-## Business Implications
-
-- **Operations teams** can monitor which locations are trending toward at-risk status
-  before negative sentiment compounds.
-- **Franchise owners** can benchmark individual locations against the market average
-  and identify underperformers with the largest revenue opportunity.
-- **Marketing teams** can use the star rating predictor to triage and prioritise
-  response to incoming reviews.
-- **Category managers** can see which service categories (e.g. Fast Food, Automotive)
-  carry the highest negative sentiment ratios and require structural intervention.
-
-## Results Snapshot
-
-| Metric | Value |
-|--------|-------|
-| Reviews analysed | 431,708 |
-| Businesses scored | 9,906 |
-| Sentiment — Positive | 86.6% |
-| Sentiment — Negative | 11.9% |
-| Star Predictor Accuracy (LR) | 69.15% |
-| LDA Topics Discovered | 5 |
-| K-Means Clusters (elbow) | 8 |
-| At-Risk Businesses | 3,286 |
-| Critical Businesses | 1,675 |
-
----
-
-## Visual Results
-
-### Sentiment Distribution
-![Sentiment Distribution](assets/sentiment_distribution_pie.png)
-
-### Star Rating Distribution
-![Star Ratings](assets/star_rating_distribution.png)
-
-### Sentiment Breakdown — Top 5 Businesses
-![Top 5 Businesses](assets/sentiment_top5_businesses.png)
-
-### Top Categories by Negative Sentiment Ratio
-![Negative Categories](assets/negative_sentiment_ratio_by_category.png)
-
-### Elbow Method — Optimal K Selection
-![Elbow Method](assets/elbow_method.png)
-
-### K-Means Cluster Visualisation (PCA)
-![PCA Clusters](assets/kmeans_pca_scatter.png)
-
-### Star Rating Predictor — Confusion Matrix
-![Confusion Matrix](assets/star_predictor_confusion_matrix.png)
-
-### Business Health Score Distribution
-![Health Scores](assets/health_score_distribution.png)
-
-### At-Risk Businesses
-![At Risk](assets/at_risk_businesses.png)
-
----
+```
+yelp-az-sentiment/
+├── src/            pipeline steps 00-07 and shared settings (common.py)
+├── assets/         charts used in this README
+├── data/           raw and intermediate data (git-ignored; see data/README.md)
+├── outputs/        metrics, reports and logs (mostly git-ignored)
+├── run_all.py
+└── requirements.txt
+```
 
 ## Author
 
-| Name | Role |
-|------|------|
-| Vachan Thambi Naveen | Data pipeline, sentiment analysis, topic modelling, clustering, financial health scoring |
+Vachan Thambi Naveen, BANA 572 (Machine Learning & Text Mining), Oregon State University.
 
-BANA 572 — Machine Learning & Text Mining, Oregon State University, 2025
-
-
----
-
-## License
-
-This project is for educational purposes. The Yelp dataset is subject to
-[Yelp's Dataset Terms of Use](https://www.yelp.com/dataset/documentation/terms).
+The Yelp dataset is subject to [Yelp's Dataset Terms of Use](https://www.yelp.com/dataset/documentation/terms);
+it is not redistributed here.

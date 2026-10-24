@@ -1,235 +1,139 @@
 """
 03_sentiment_eda.py
 -------------------
-Exploratory data analysis and sentiment visualisation for the
-Arizona Yelp dataset.
+Charts for the README:
 
-Charts produced (saved to outputs/):
-    1. star_rating_distribution.png
-    2. top10_most_reviewed_businesses.png
-    3. top10_business_categories.png
-    4. sentiment_distribution_pie.png
-    5. sentiment_top5_businesses.png
-    6. negative_sentiment_ratio_by_category.png
-    7. top_tfidf_keywords_negative.png
+    assets/star_rating_distribution.png    How customers rate.
+    assets/vader_vs_stars.png              VADER's labels against the customer's
+                                           own star rating, before vs after the fix.
+    assets/negative_share_by_category.png  Share of 1-2 star reviews by category
+                                           (the customer's verdict, not VADER's).
 
 Usage:
     python src/03_sentiment_eda.py
 
-Input:  data/vader_preprocessed_output.csv
-Output: outputs/*.png
+Input:  data/reviews_preprocessed.csv
+Output: the charts above, outputs/metrics/03_sentiment_eda.json
 """
 
-import os
-import pandas as pd
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import pandas as pd
 import seaborn as sns
-from sklearn.feature_extraction.text import TfidfVectorizer
 
-OUTPUT_DIR = "outputs"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+from common import (ASSETS_DIR, PREPROCESSED_CSV, SENTIMENT_COLORS, SENTIMENT_LABELS,
+                    ensure_dirs, save_metrics)
 
-# Consistent visual style
-sns.set_theme(style="whitegrid", palette="muted")
-PALETTE = {"Positive": "#4CAF50", "Negative": "#E53935", "Neutral": "#FFC107"}
+MIN_CATEGORY_REVIEWS = 500
+TOP_CATEGORIES = 12
 
-
-def load_data(path: str) -> pd.DataFrame:
-    print(f"Loading {path}...")
-    df = pd.read_csv(path)
-    print(f"  {len(df):,} reviews, {df['business_id'].nunique():,} businesses")
-    return df
+sns.set_theme(style="whitegrid")
 
 
-# ---------------------------------------------------------------------------
-# Individual chart functions
-# ---------------------------------------------------------------------------
-
-def plot_star_distribution(df: pd.DataFrame) -> None:
-    """Bar chart of star rating counts (stars_y = customer star rating)."""
-    counts = df["stars_y"].value_counts().sort_index()
+def plot_star_distribution(df):
+    counts = df["review_stars"].value_counts().sort_index()
+    shares = counts / counts.sum()
     fig, ax = plt.subplots(figsize=(8, 5))
-    counts.plot(kind="bar", ax=ax, color=sns.color_palette("Blues_d", len(counts)), edgecolor="white")
-    ax.set_title("Distribution of Star Ratings", fontsize=14, pad=12)
-    ax.set_xlabel("Star Rating")
-    ax.set_ylabel("Number of Reviews")
-    ax.set_xticklabels(counts.index, rotation=0)
+    bars = ax.bar(counts.index.astype(str), counts.values, color="#42A5F5", edgecolor="white")
+    for bar, share in zip(bars, shares):
+        ax.annotate(f"{share:.0%}", (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                    ha="center", va="bottom", fontsize=10, xytext=(0, 3), textcoords="offset points")
+    ax.set_title("How customers rate: distribution of star ratings", fontsize=14, pad=12)
+    ax.set_xlabel("Star rating")
+    ax.set_ylabel("Number of reviews")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
     plt.tight_layout()
-    path = f"{OUTPUT_DIR}/star_rating_distribution.png"
+    path = ASSETS_DIR / "star_rating_distribution.png"
     plt.savefig(path, dpi=150)
     plt.close()
     print(f"  Saved {path}")
 
 
-def plot_top_businesses(df: pd.DataFrame, n: int = 10) -> None:
-    """Horizontal bar chart of the n most-reviewed businesses."""
-    top = df.groupby("name")["review_id"].count().nlargest(n).sort_values()
-    fig, ax = plt.subplots(figsize=(9, 5))
-    top.plot(kind="barh", ax=ax, color="#42A5F5", edgecolor="white")
-    ax.set_title(f"Top {n} Most Reviewed Businesses", fontsize=14, pad=12)
-    ax.set_xlabel("Number of Reviews")
-    ax.set_ylabel("")
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
-    plt.tight_layout()
-    path = f"{OUTPUT_DIR}/top10_most_reviewed_businesses.png"
+def plot_vader_vs_stars(df):
+    """For each star rating, the share of reviews VADER calls negative/neutral/positive."""
+    panels = [
+        ("vader_label_old", "Before: VADER on cleaned text"),
+        ("vader_label", "After: VADER on the original text"),
+    ]
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=True)
+    shares_by_version = {}
+    for ax, (col, title) in zip(axes, panels):
+        shares = (pd.crosstab(df["review_stars"], df[col], normalize="index")
+                  .reindex(columns=SENTIMENT_LABELS, fill_value=0))
+        shares_by_version[col] = shares
+        shares.plot(kind="bar", stacked=True, ax=ax, width=0.8, edgecolor="white", legend=False,
+                    color=[SENTIMENT_COLORS[label] for label in SENTIMENT_LABELS])
+        ax.set_title(title, fontsize=13)
+        ax.set_xlabel("Customer's star rating")
+        ax.set_xticklabels([str(s) for s in shares.index], rotation=0)
+        ax.yaxis.set_major_formatter(mticker.PercentFormatter(1.0, decimals=0))
+    axes[0].set_ylabel("Share of reviews")
+    handles, labels = axes[1].get_legend_handles_labels()
+    fig.legend(handles, [f"VADER: {label}" for label in labels], loc="lower center",
+               ncol=3, frameon=False, bbox_to_anchor=(0.5, 0.0))
+    fig.tight_layout(rect=[0, 0.07, 1, 1])
+    path = ASSETS_DIR / "vader_vs_stars.png"
     plt.savefig(path, dpi=150)
     plt.close()
     print(f"  Saved {path}")
+    return shares_by_version
 
 
-def plot_top_categories(df: pd.DataFrame, n: int = 10) -> None:
-    """Horizontal bar chart of most common business categories."""
-    # Categories are pipe-separated in the 'categories' column
-    cat_series = (
-        df["categories"]
-        .dropna()
-        .str.split(",")
-        .explode()
-        .str.strip()
-    )
-    top_cats = cat_series.value_counts().nlargest(n).sort_values()
+def plot_negative_share_by_category(df):
+    cats = df[["categories", "review_stars"]].dropna(subset=["categories"]).copy()
+    cats["category"] = cats["categories"].str.split(",")
+    cats = cats.explode("category")
+    cats["category"] = cats["category"].str.strip()
+    cats["negative"] = cats["review_stars"] <= 2
 
-    fig, ax = plt.subplots(figsize=(9, 5))
-    top_cats.plot(kind="barh", ax=ax, color="#FFA726", edgecolor="white")
-    ax.set_title(f"Top {n} Business Categories", fontsize=14, pad=12)
-    ax.set_xlabel("Frequency")
-    ax.set_ylabel("")
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
-    plt.tight_layout()
-    path = f"{OUTPUT_DIR}/top10_business_categories.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"  Saved {path}")
-
-
-def plot_sentiment_pie(df: pd.DataFrame) -> None:
-    """Pie chart of overall VADER sentiment distribution."""
-    counts = df["vader_sentiment"].value_counts()
-    colors = [PALETTE.get(l, "#9E9E9E") for l in counts.index]
-
-    fig, ax = plt.subplots(figsize=(6, 6))
-    wedges, texts, autotexts = ax.pie(
-        counts,
-        labels=counts.index,
-        autopct="%1.1f%%",
-        colors=colors,
-        startangle=140,
-        wedgeprops={"edgecolor": "white", "linewidth": 1.5},
-    )
-    for at in autotexts:
-        at.set_fontsize(11)
-    ax.set_title("Sentiment Distribution (VADER)", fontsize=14, pad=16)
-    plt.tight_layout()
-    path = f"{OUTPUT_DIR}/sentiment_distribution_pie.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"  Saved {path}")
-
-
-def plot_top5_sentiment_breakdown(df: pd.DataFrame) -> None:
-    """Stacked bar: positive vs negative review count for the 5 most-reviewed businesses."""
-    top5 = df.groupby("name")["review_id"].count().nlargest(5).index
-    subset = df[df["name"].isin(top5) & (df["vader_sentiment"] != "Neutral")]
-
-    pivot = (
-        subset.groupby(["name", "vader_sentiment"])
-        .size()
-        .unstack(fill_value=0)
-        [["Positive", "Negative"]]
-    )
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    pivot.plot(kind="bar", stacked=True, ax=ax,
-               color=[PALETTE["Positive"], PALETTE["Negative"]],
-               edgecolor="white")
-    ax.set_title("Sentiment Breakdown — Top 5 Most Reviewed Businesses", fontsize=14, pad=12)
-    ax.set_xlabel("")
-    ax.set_ylabel("Number of Reviews")
-    ax.set_xticklabels(pivot.index, rotation=25, ha="right")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
-    ax.legend(title="Sentiment")
-    plt.tight_layout()
-    path = f"{OUTPUT_DIR}/sentiment_top5_businesses.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"  Saved {path}")
-
-
-def plot_negative_ratio_by_category(df: pd.DataFrame, n: int = 10) -> None:
-    """Horizontal bar chart of the categories with the highest negative-sentiment ratio."""
-    df_exploded = df.copy()
-    df_exploded["category"] = df_exploded["categories"].str.split(",")
-    df_exploded = df_exploded.explode("category")
-    df_exploded["category"] = df_exploded["category"].str.strip()
-
-    cat_total = df_exploded.groupby("category").size()
-    cat_neg   = df_exploded[df_exploded["vader_sentiment"] == "Negative"].groupby("category").size()
-    neg_ratio = (cat_neg / cat_total).dropna().sort_values(ascending=False)
-
-    # Only show categories with enough reviews to be meaningful
-    min_reviews = 100
-    valid_cats  = cat_total[cat_total >= min_reviews].index
-    neg_ratio   = neg_ratio[neg_ratio.index.isin(valid_cats)].nlargest(n).sort_values()
+    stats = cats.groupby("category")["negative"].agg(share="mean", reviews="size")
+    stats = stats[stats["reviews"] >= MIN_CATEGORY_REVIEWS]
+    top = stats.sort_values("share", ascending=False).head(TOP_CATEGORIES)
+    overall = float((df["review_stars"] <= 2).mean())
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    neg_ratio.plot(kind="barh", ax=ax, color="#EF5350", edgecolor="white")
-    ax.set_title(f"Top {n} Categories by Negative Sentiment Ratio", fontsize=14, pad=12)
-    ax.set_xlabel("Negative Sentiment Ratio")
-    ax.set_ylabel("")
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:.0%}"))
+    ax.barh(top.index[::-1], top["share"][::-1], color="#EF5350", edgecolor="white")
+    ax.axvline(overall, color="#37474F", linestyle="--", linewidth=1.2,
+               label=f"All reviews: {overall:.0%}")
+    ax.set_title(f"Categories with the highest share of 1-2 star reviews\n"
+                 f"(categories with {MIN_CATEGORY_REVIEWS:,}+ reviews)", fontsize=13, pad=12)
+    ax.set_xlabel("Share of reviews rated 1-2 stars")
+    ax.xaxis.set_major_formatter(mticker.PercentFormatter(1.0, decimals=0))
+    ax.legend(loc="lower right")
     plt.tight_layout()
-    path = f"{OUTPUT_DIR}/negative_sentiment_ratio_by_category.png"
+    path = ASSETS_DIR / "negative_share_by_category.png"
     plt.savefig(path, dpi=150)
     plt.close()
     print(f"  Saved {path}")
+    return overall, top
 
-
-def plot_tfidf_keywords_negative(df: pd.DataFrame, n: int = 15) -> None:
-    """Bar chart of the top TF-IDF terms in negative reviews."""
-    neg_texts = df[df["vader_sentiment"] == "Negative"]["cleaned_text"].dropna()
-
-    tfidf    = TfidfVectorizer(max_features=500, stop_words="english")
-    matrix   = tfidf.fit_transform(neg_texts)
-    scores   = matrix.mean(axis=0).A1
-    terms    = tfidf.get_feature_names_out()
-
-    top_df = (
-        pd.Series(scores, index=terms)
-        .nlargest(n)
-        .sort_values()
-    )
-
-    fig, ax = plt.subplots(figsize=(9, 6))
-    top_df.plot(kind="barh", ax=ax, color="#42A5F5", edgecolor="white")
-    ax.set_title(f"Top {n} TF-IDF Keywords in Negative Reviews", fontsize=14, pad=12)
-    ax.set_xlabel("Mean TF-IDF Score")
-    ax.set_ylabel("")
-    plt.tight_layout()
-    path = f"{OUTPUT_DIR}/top_tfidf_keywords_negative.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"  Saved {path}")
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
-    df = load_data("data/vader_preprocessed_output.csv")
+    ensure_dirs()
+    print(f"Loading {PREPROCESSED_CSV}...")
+    df = pd.read_csv(PREPROCESSED_CSV,
+                     usecols=["review_stars", "categories", "vader_label", "vader_label_old"])
 
-    print("\nGenerating charts...")
+    print("Generating charts...")
     plot_star_distribution(df)
-    plot_top_businesses(df)
-    plot_top_categories(df)
-    plot_sentiment_pie(df)
-    plot_top5_sentiment_breakdown(df)
-    plot_negative_ratio_by_category(df)
-    plot_tfidf_keywords_negative(df)
+    shares = plot_vader_vs_stars(df)
+    overall, top = plot_negative_share_by_category(df)
 
-    print(f"\nAll charts saved to /{OUTPUT_DIR}/")
+    metrics = {
+        "negative_share_overall": overall,
+        "vader_negative_share_by_star": {
+            version: {int(star): float(row["Negative"]) for star, row in table.iterrows()}
+            for version, table in shares.items()
+        },
+        "most_negative_categories": [
+            {"category": cat, "share_1_2_star": float(row["share"]), "reviews": int(row["reviews"])}
+            for cat, row in top.iterrows()
+        ],
+    }
+    save_metrics("03_sentiment_eda", metrics)
 
 
 if __name__ == "__main__":

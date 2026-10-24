@@ -1,0 +1,85 @@
+{
+  "n_train": 345366,
+  "n_test": 86342,
+  "test_star_share": {
+    "1": 0.17422575339927265,
+    "2": 0.08078339626137916,
+    "3": 0.08993305691320562,
+    "4": 0.18650251326121703,
+    "5": 0.46855528016492554
+  },
+  "best_C": 2.0,
+  "tuning_accuracy": {
+    "0.25": 0.68725,
+    "0.5": 0.7019,
+    "1.0": 0.7054,
+    "2.0": 0.7067,
+    "4.0": 0.70325
+  },
+  "models": {
+    "baseline": {
+      "name": "Always guess the most common rating",
+      "accuracy": 0.46855528016492554,
+      "macro_f1": 0.12762346409249356,
+      "mae_stars": 1.3056218294688564,
+      "within_one_star": 0.6550577934261426,
+      "flag_1_2_recall": 0.0,
+      "flag_1_2_precision": 0.0
+    },
+    "old": {
+      "name": "Old setup: cleaned text, top 3,000 words",
+      "accuracy": 0.6919923096523128,
+      "macro_f1": 0.5550565537497623,
+      "mae_stars": 0.4229691227907623,
+      "within_one_star": 0.9299761413912117,
+      "flag_1_2_recall": 0.8426741756744481,
+      "flag_1_2_precision": 0.84903674552693
+    },
+    "new": {
+      "name": "New setup: original text, words + 2-word phrases",
+      "accuracy": 0.7219429709758866,
+      "macro_f1": 0.6055147588942561,
+      "mae_stars": 0.3405874313775451,
+      "within_one_star": 0.9583400894118738,
+      "flag_1_2_recall": 0.8789626669088927,
+      "flag_1_2_precision": 0.8823690329640268
+    }
+  },
+  "per_class_recall_new": {
+    "1": 0.8699062686964036,
+    "2": 0.349247311827957,
+    "3": 0.4059240180296201,
+    "4": 0.46426131776687574,
+    "5": 0.8944037967174214
+  },
+  "top_phrases": {
+    "1_star": [
+      "worst",
+      "horrible",
+      "one star",
+      "terrible",
+      "rude",
+      "awful",
+      "disgusting",
+      "zero stars",
+      "not",
+      "never",
+      "will never",
+      "very disappointed"
+    ],
+    "5_star": [
+      "amazing",
+      "great",
+      "delicious",
+      "best",
+      "awesome",
+      "excellent",
+      "love",
+      "perfect",
+      "fantastic",
+      "not only",
+      "so good",
+      "wonderful"
+    ]
+  }
+}
